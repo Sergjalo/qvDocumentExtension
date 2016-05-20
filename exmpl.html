@@ -1,0 +1,256 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+</head>
+<body>
+  <div id="d0" class="qvFrame Document_page-9 p-0 pan-1" style="height:100px;"><h1>pan01</h1></div>
+  <div id="d1" class="qvFrame Document_page-9 p-0 pan-1 head-1"><h1>pan01_but01</h1></div>
+  <div id="d2" class="qvFrame Document_page-9 p-0 pan-1 butAction-2"><h1>pan01_action02</h1></div>
+
+  <div id="d3" class="qvFrame Document_page-9 p-1 pan-2" ><h1>pan02</h1></div>
+  <div id="d4" class="qvFrame Document_page-9 p-1 pan-2 but-1" style="height:120px;"><h1>pan02_but01</h1></div>
+  <div id="d5" class="qvFrame Document_page-9 p-1 pan-2 butAction-2" height="60px"><h1>pan02_action02</h1></div>
+
+  <div id="d3" class="qvFrame Document_page-9 p-1 pan-3" ><h1>pan02</h1></div>
+  <div id="d4" class="qvFrame Document_page-9 p-1 pan-3 head-1" style="height:120px;"><h1>pan02_but01</h1></div>
+  <div id="d5" class="qvFrame Document_page-9 p-1 pan-3 but-2" style="height:180px;"><h1>pan02_but02</h1></div>
+  
+  <script src="jquery-2.2.3.js"> </script>
+  <script>
+/**
+ * document extension for up/down shifting regions 
+ * @author Sergii Kotov <Sergii_Kotov@epam.com>
+ *
+ * Date: 2016-05
+ *
+ * headers - first top element in panel. Or named as header
+ * main panel height - sum of h simple panels - only headers if folded - header h+panel h if unfolded
+ * folding of main panels is under development
+ */
+ 
+ /**
+ * @constructs Element
+ * @param id {string} element's id from html
+ * @param num {number} number of element from Qv
+ * @param type {string} type of element from name, defined in Qv like combo-15 or but-22
+ * @param panMainId {number} number of logical grouping elements on the most common level
+ * @param panId {number} number of logical grouping elements on the lowest level
+ * @param top {number} element's top
+ * @param height {number} element's height
+ * @param click {function} onClick event function
+ */
+function Element (id,num,type,panMainId,panId, top, height, click) {
+	this.id = id;
+	this.num = num;
+	this.type = type;
+	this.panMainId = panMainId;
+	this.panId = panId;
+	this.top = top;
+	this.height = height;
+	this.click=click;
+}
+
+/**
+* @constructs list of all Qv elements on page that should shift up/down
+* @param pageNum {number} number of Qv Tab (page)
+*/
+function ElementsList (pageNum) {
+	this.elem = [];
+	this.panels = [];     // {height,id,mainId,fold,header};
+	this.mainPanels = []; // {height,id,fold};
+	this.pageNum=pageNum;
+	
+	var elNum;
+	var elType;
+	var panNumIter=0;
+	var self = this;
+
+	$('[class^="qvFrame Document_page-'+pageNum+'"]').each( function (){		
+		var s= $(this).attr("class");
+		
+		var reNums = /-\d+/g ;
+		var reType = /(\w+)-\d+$/ ;
+		var myArray=[];
+		var i=0;
+		var panelMainNum;
+		var panelNum;
+		while ((myArray = reNums.exec(s)) != null) {
+			switch(i) {
+			case 1: //0 - page num, leave it. start from main panel
+				panelMainNum=myArray[0].substr(1);
+				break;
+			case 2:
+				panelNum=myArray[0].substr(1);
+				break;
+			case 3:
+				elNum=myArray[0].substr(1);
+				break;
+			}
+			i++;
+		}
+		// 4th level of folding is element level
+		if (i==4) {
+			myArray = reType.exec(s);
+			elType=myArray[1];
+			// for elements that should react to fold/unfold panel define function 
+			var fFold = null;
+			if (elType.indexOf('butAction')>-1) {
+				fFold= function (){
+					self.foldPanel(panelNum);
+				}
+			}
+			self.elem.push(new Element($(this).attr("id"),elNum,elType,panelMainNum,panelNum, $(this).css('top'), $(this).css('height'),fFold)); //(id,num,type,panMainId,panId)
+			// and tie it to element
+			if (!(fFold==undefined)) {
+				$(this).click(fFold);
+			}	
+		}	
+		return true;
+	});
+	
+	findPanelHeights();
+	findMainPanelHeights();
+
+	
+	/**
+	 * @description shift panels under current. It do nothing with current panel,
+	 * cause it assumed that it visibility is switched by qV variable
+	 * panId {number} id of panel to be folded/unfolded
+	 */
+	this.foldPanel = function (panId){
+		var pan;
+		for (var pn=0; pn<this.panels.length; pn++) {
+			if (this.panels[pn].id==panId) {
+				pan= this.panels[pn];
+				break;
+			}
+		}
+		if (pan==undefined) {
+			return false;
+		}
+		alert(pan.id+' fold='+pan.fold);
+	}
+	
+	/**
+	 * @description fill panels array with max heights of it elements
+	 * @private
+	 */
+	function findPanelHeights (){
+		// find uniq panels id
+		self.elem.forEach(function(item) {
+			if (self.panels.indexOf(item.panId)==-1) {
+				self.panels.push(item.panId);
+			}	
+		});
+		// fill max height
+		self.panels=self.panels.map(function(item) {
+			var k=self.elem.reduce(function(max, current) {
+				if (+current.panId == +item) {
+					if (+max.height.replace('px','')<+current.height.replace('px','')) {
+						return current;
+					}
+				}
+				return max; 
+			}, {height:'0px'});
+			// header height
+			// define header by name of element "header" 
+			// 	for futher development - we'll pick up element that on the top of panel
+			// that is bad choice, cause main panels should strictly named like p, panels like pan and headers like head
+			k.hh=$('[class^="qvFrame Document_page-'+self.pageNum+' p-'+k.panMainId+' pan-'+k.panId+' head"]').css('height');
+			return {
+					height: +k.height.replace('px',''),
+					id: k.panId,
+					mainId: k.panMainId,
+					fold: true,
+					header: (k.hh)?+k.hh.replace('px',''):0
+				};
+		});
+		
+		return true;
+	}
+
+	// for all panels on main sum their heights
+	function findMainPanelHeights (){
+		// find uniq mainPanels id
+		self.elem.forEach(function(item) {
+			if (self.mainPanels.indexOf(item.panMainId)==-1) {
+				self.mainPanels.push(item.panMainId);
+			}	
+		});
+		// fill max height
+		self.mainPanels=self.mainPanels.map(function(item) {
+			var k=self.panels.reduce(function(sum, current) {
+				if (+current.mainId == +item) {
+					sum.height+=current.height;
+				}
+				return sum; 
+			},{height: 0});
+			return {
+					id:	+item,
+					height: k.height,
+					fold: true
+				};
+		});
+		return true;
+	}
+
+	/**
+	 * @description compare elements regarding to flags 
+	 * @private
+	 * @param a {object} element object from list of all objects
+	 * @param b {number} number of panel or Main panel on wich or under wich elements should be finded
+	 * @param isBelow {boolean} flag to define if elements on other panels that under b required
+	 * @param isMain {boolean} flag to define level of panel
+	 * @returns {boolean} is element a fit requirements 
+	 */
+	function compareElements (a,b,isBelow, isMain) {
+		a=(isMain) ? a.panMainId : a.panId;
+		if (isBelow) {
+			return a>b
+		}
+		else {
+			return a==b
+		}
+	}
+	
+	/**
+	 * @description return array of elements that on panel (or main panel isMain=true) or below that panel (isBelow=true)
+	 * @param panelNum {number} number of panel or Main panel on wich or under wich elements should be finded
+	 * @param isBelow {boolean} flag to define if elements on other panels that under b required
+	 * @param isMain {boolean} flag to define level of panel
+	 * @returns {array} array of founded elements
+	 */
+	this.usePanel = function (panelNum, isBelow, isMain) {
+		var arElem=[];
+		//for (var k=0; k<this.elem.length; k++)
+		for (k in this.elem) {
+			if (compareElements(this.elem[k],panelNum,isBelow, isMain)) {
+				arElem.push(this.elem[k]); //console.log(elem[k].id+ " "+ elem[k].type+ " "+ elem[k].num);
+			}
+		}
+		return arElem;
+	}
+} // ElementsList
+
+	var e=new ElementsList(9);
+	var l=e.elem[1].click;
+	l();
+	console.log(e.mainPanels);
+	console.log(e.panels);
+
+	
+	var t= e.usePanel(0, true, true);
+	t=e.usePanel(1, false, false);
+	/*
+	var h;
+	for (g in t) {
+		var kk=$('#'+g.id);
+		h = parseInt(kk.css('top').replace('px',''))+hShift;
+		kk.css('top',h+'px');
+	}	
+	*/
+
+</script>
+</body>
+</html>
