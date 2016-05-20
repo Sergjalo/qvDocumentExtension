@@ -1,0 +1,56 @@
+.filterPane
+{
+    height: 150px;    
+    width: 100%;
+    background-color: #DFF1F7;
+    position: float;
+    opacity: 0.9;
+    left: 0px;
+    top: 0px;
+	z-index: 0
+}
+
+.filterPane2
+{
+    height: 800px;    
+    width: 100%;
+    background-color: #F7E5DF;
+    position: float;
+    opacity: 0.9;
+    left: 0px;
+    top: 450px;
+	z-index: 0
+}
+
+.filterChild
+{
+    position: relative !important;    
+    left: -200px;
+}
+
+.filterChild div
+{
+    position: relative !important;    
+}
+
+.showhideButton
+{
+    height: 100px;
+    width: 20px;
+    background-color: #CCC;
+    position: absolute;
+    border-bottom-right-radius: 10px;
+    border-top-right-radius: 10px;
+    left: 0px;
+    top: 100px;
+}
+
+.hiddenPane
+{
+    width: 1px;
+    height: 1000px;
+    width: 10px;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+}
