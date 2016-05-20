@@ -56,6 +56,7 @@ function Element (id,num,type,panMainId,panId, top, height, click) {
 * @param pageNum {number} number of Qv Tab (page)
 */
 function ElementsList (pageNum) {
+	//this.qvDoc = Qv.GetCurrentDocument();	// get Qv - to main class
 	this.elem = [];
 	this.panels = [];     // {height,id,mainId,fold,header};
 	this.mainPanels = []; // {height,id,fold};
@@ -65,7 +66,8 @@ function ElementsList (pageNum) {
 	var elType;
 	var panNumIter=0;
 	var self = this;
-
+	
+	// fill elem
 	$('[class^="qvFrame Document_page-'+pageNum+'"]').each( function (){		
 		var s= $(this).attr("class");
 		
@@ -108,11 +110,11 @@ function ElementsList (pageNum) {
 		}	
 		return true;
 	});
-	
+	// fill panels and mainPanels
 	findPanelHeights();
 	findMainPanelHeights();
 
-	
+	//----------------------------------------------------------------------------------------------------------------
 	/**
 	 * @description shift panels under current. It do nothing with current panel,
 	 * cause it assumed that it visibility is switched by qV variable
@@ -120,16 +122,38 @@ function ElementsList (pageNum) {
 	 */
 	this.foldPanel = function (panId){
 		var pan;
+		var pId;
 		for (var pn=0; pn<this.panels.length; pn++) {
 			if (this.panels[pn].id==panId) {
 				pan= this.panels[pn];
+				pId= pn;
 				break;
 			}
 		}
 		if (pan==undefined) {
 			return false;
 		}
-		alert(pan.id+' fold='+pan.fold);
+		alert(' fold='+pan.fold+' height='+pan.height+' id='+pan.id);
+		// get Qv - to main class
+		// set Qv Var - predefined name vShiftSign_page_MainPanel_Panel
+		var hShift;
+		if (pan.fold) {														
+			hShift= pan.height;											
+			//qvDoc.SetVariable("vShiftSign"+self.pageNum+'_'+pan.Mainid+'_'+pan.id,"1");
+		}
+		else {
+			hShift= -pan.height;
+			//qvDoc.SetVariable("vShiftSign"+self.pageNum+'_'+pan.Mainid+'_'+pan.id,"0");
+		}
+		
+		var listShiftedObj=self.usePanel(pan.id, true, false);
+		for (var k=0; k<listShiftedObj.length; k++) {
+			var g=$('#'+listShiftedObj[k].id);
+			//var h=parseInt(g.css('top').replace('px',''))+hShift;
+			var h=parseInt(g.position().top)+hShift;
+			$('#'+listShiftedObj[k].id).css('top',h+'px');
+		}
+		this.panels[pId].fold=!pan.fold;
 	}
 	
 	/**
@@ -166,7 +190,6 @@ function ElementsList (pageNum) {
 					header: (k.hh)?+k.hh.replace('px',''):0
 				};
 		});
-		
 		return true;
 	}
 
@@ -223,8 +246,8 @@ function ElementsList (pageNum) {
 	 */
 	this.usePanel = function (panelNum, isBelow, isMain) {
 		var arElem=[];
-		//for (var k=0; k<this.elem.length; k++)
-		for (k in this.elem) {
+		for (var k=0; k<this.elem.length; k++) {
+		//for (k in this.elem) {
 			if (compareElements(this.elem[k],panelNum,isBelow, isMain)) {
 				arElem.push(this.elem[k]); //console.log(elem[k].id+ " "+ elem[k].type+ " "+ elem[k].num);
 			}
@@ -232,16 +255,20 @@ function ElementsList (pageNum) {
 		return arElem;
 	}
 } // ElementsList
-
+	
+	// create elements array - grab every qV associated element on page 9
 	var e=new ElementsList(9);
 	var l=e.elem[1].click;
+	// we can launch actions directly from array
 	l();
 	console.log(e.mainPanels);
 	console.log(e.panels);
-
-	
+	// get elements that under MAIN panel #0
 	var t= e.usePanel(0, true, true);
+	// get elements that on panel #1
 	t=e.usePanel(1, false, false);
+	// as usial we'll work only with simple panels, main one is for future
+	
 	/*
 	var h;
 	for (g in t) {
