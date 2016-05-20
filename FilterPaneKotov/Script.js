@@ -10,12 +10,20 @@ var currentTab = "";
 /**
  * document extension for up/down shifting regions 
  * @author Sergii Kotov <Sergii_Kotov@epam.com>
- *
+ * https://github.com/Sergjalo/qvDocumentExtension/
+ * 
  * Date: 2016-05
  *
- * for objects that should shift Object ID in QV should be like 
+ * For objects, that should shift, Object ID in QV should be like 
  * page-PAGENUM p-MAINPANELNUM pan-PANELNUM butAction-ELEMENTNUM
  * for instance - "page-0 p-0 pan-1 butAction-2" or "page-2 p-0 pan-1 text-3"
+ * 
+ * in QlikView there shoud be variable for every panel - vShiftSign_page_MainPanel_Panel (vShiftSign0_0_3 - for panel 3)
+ * when it 1 - all elements that are not in header should be invisible and sign on folding button should be "down arrow"
+ * so for all panel objects except headers and placed on header - define conditional view on vShiftSignn_n_n = 0
+ * and on every action button place text like =if(vShiftSign0_0_0=1,chr(9660),chr(9650))
+ *
+ * Number of panels is unlimited.
  *
  * if element should make fold/unfold action - simply name it as "butAction" (like in first example).
  * (it name shouldn't be strictly "butAction", it should only contain "butAction"
