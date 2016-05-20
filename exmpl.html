@@ -24,6 +24,26 @@
  *
  * Date: 2016-05
  *
+ * for objects that should shift Object ID in QV should be like 
+ * page-PAGENUM p-MAINPANELNUM pan-PANELNUM butAction-ELEMENTNUM
+ * for instance - "page-0 p-0 pan-1 butAction-2" or "page-2 p-0 pan-1 text-3"
+ *
+ * if element should make fold/unfold action - simply name it as "butAction" (like in first example).
+ * (it name shouldn't be strictly "butAction", it should only contain "butAction"
+ * 
+ * now mainPanels functionality is not ready (folding nested groups of panels). 
+ * but for future using name static header of panel like headerF or headerUF. 
+ * А meen that initial state is fold, UF - unfold.
+ * 
+ * Examples:
+ * "page-2 p-0 pan-1 headerUFbutAction-3" - that object id describe element that is header of panel #1
+ * that'll be show in full size (unfolded) and by cliking on that header it will fold/unfold
+ *
+ * "page-2 p-0 pan-3 headerF-37"
+ * "page-0 p-0 pan-3 butAction-7" - two elements. first - header, another - button to act with panel #3
+ *
+ * todo - grab state of folding of panel from header element name. if acn be headerF/headerUF
+ * 
  * headers - first top element in panel. Or named as header
  * main panel height - sum of h simple panels - only headers if folded - header h+panel h if unfolded
  * folding of main panels is under development
@@ -61,14 +81,14 @@ function ElementsList (pageNum) {
 	this.panels = [];     // {height,id,mainId,fold,header};
 	this.mainPanels = []; // {height,id,fold};
 	this.pageNum=pageNum;
+	this.initFolding=false; // unfold
 	
 	var elNum;
 	var elType;
 	var panNumIter=0;
 	var self = this;
-	
 	// fill elem
-	$('[class^="qvFrame Document_page-'+pageNum+'"]').each( function (){		
+	$('[class^="QvFrame Document_page-'+pageNum+'"]').each( function (){		
 		var s= $(this).attr("class");
 		
 		var reNums = /-\d+/g ;
@@ -133,24 +153,26 @@ function ElementsList (pageNum) {
 		if (pan==undefined) {
 			return false;
 		}
-		alert(' fold='+pan.fold+' height='+pan.height+' id='+pan.id);
+		//alert(' fold='+pan.fold+' height='+pan.height+' id='+pan.id);
+		
 		// get Qv - to main class
 		// set Qv Var - predefined name vShiftSign_page_MainPanel_Panel
 		var hShift;
 		if (pan.fold) {														
 			hShift= pan.height;											
-			//qvDoc.SetVariable("vShiftSign"+self.pageNum+'_'+pan.Mainid+'_'+pan.id,"1");
+			//self.qvDoc.SetVariable("vShiftSign"+self.pageNum+'_'+pan.mainId+'_'+pan.id,"0");
 		}
 		else {
 			hShift= -pan.height;
-			//qvDoc.SetVariable("vShiftSign"+self.pageNum+'_'+pan.Mainid+'_'+pan.id,"0");
+			//self.qvDoc.SetVariable("vShiftSign"+self.pageNum+'_'+pan.mainId+'_'+pan.id,"1");
 		}
+		//alert(' hShift='+hShift+ "vShiftSign"+self.pageNum+'_'+pan.mainId+'_'+pan.id);
 		
 		var listShiftedObj=self.usePanel(pan.id, true, false);
 		for (var k=0; k<listShiftedObj.length; k++) {
 			var g=$('#'+listShiftedObj[k].id);
-			//var h=parseInt(g.css('top').replace('px',''))+hShift;
-			var h=parseInt(g.position().top)+hShift;
+			var h=parseInt(g.css('top').replace('px',''))+hShift;
+			//var h=parseInt(g.position().top)+hShift;
 			$('#'+listShiftedObj[k].id).css('top',h+'px');
 		}
 		this.panels[pId].fold=!pan.fold;
@@ -186,7 +208,7 @@ function ElementsList (pageNum) {
 					height: +k.height.replace('px',''),
 					id: k.panId,
 					mainId: k.panMainId,
-					fold: true,
+					fold: self.initFolding,
 					header: (k.hh)?+k.hh.replace('px',''):0
 				};
 		});
@@ -255,7 +277,7 @@ function ElementsList (pageNum) {
 		return arElem;
 	}
 } // ElementsList
-	
+
 	// create elements array - grab every qV associated element on page 9
 	var e=new ElementsList(9);
 	var l=e.elem[1].click;
