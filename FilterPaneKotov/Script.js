@@ -26,6 +26,7 @@ var docQv;
  * and on every action button place text like =if(vShiftSign0_0_0=1,chr(9660),chr(9650))
  *
  * Number of panels is unlimited.
+ * if only one panel should be shown at one time apllication should have variable vShiftOnlyOne=1.
  *
  * if element should make fold/unfold action - simply name it as "butAction" (like in first example).
  * (it name shouldn't be strictly "butAction", it should only contain "butAction"
@@ -81,6 +82,7 @@ function ElementsList (pageNum) {
 	this.mainPanels = []; // {height,id,fold};
 	this.pageNum=pageNum;
 	this.initFolding=false; // unfold
+	this.onePanelShow=0;	// show only one unfold panel
 	
 	var elNum;
 	var elType;
@@ -141,18 +143,31 @@ function ElementsList (pageNum) {
 	 * cause it assumed that it visibility is switched by qV variable
 	 * panId {number} id of panel to be folded/unfolded
 	 */
-	this.foldPanel = function (panId){
+	this.foldPanel = function (panId, collapseOther){
 		var pan;
 		var pId;
+		var unfolded=[];
 		for (var pn=0; pn<self.panels.length; pn++) {
 			if (self.panels[pn].id==panId) {
 				pan= self.panels[pn];
 				pId= pn;
-				break;
+			}
+			else { // if there any other unfolded panels 
+				if ((!self.panels[pn].fold) && ( collapseOther==undefined)) {
+					unfolded.push(self.panels[pn].id); // collect their id
+				}
 			}
 		}
 		if (pan==undefined) {
 			return false;
+		}
+		
+		if (collapseOther==undefined) {
+			if (self.onePanelShow==1) {
+				for (var i=0; i<unfolded.length; i++) {
+					self.foldPanel(unfolded[i],1);
+				}
+			}
 		}
 		
 		// get Qv - to main class
@@ -171,7 +186,6 @@ function ElementsList (pageNum) {
 		for (var k=0; k<listShiftedObj.length; k++) {
 			var g=$('#'+listShiftedObj[k].id);
 			var h=parseInt(g.css('top').replace('px',''))+hShift;
-			//var h=parseInt(g.position().top)+hShift;
 			$('#'+listShiftedObj[k].id).css('top',h+'px');
 		}
 		self.panels[pId].fold=!pan.fold;
@@ -190,7 +204,6 @@ function ElementsList (pageNum) {
 		});
 		// fill max height
 		self.panels=self.panels.map(function(item) {
-			//alert("item="+item);
 			var k=self.elem.reduce(function(max, current) {
 				if (+current.panId == +item) {
 					if (+max.height.replace('px','')<+current.height.replace('px','')) {
@@ -212,36 +225,6 @@ function ElementsList (pageNum) {
 					header: (k.hh)?+k.hh.replace('px',''):0
 				};
 		});
-		
-		/* that is the same but without map and reduce
-		for (var i=0; i<self.panels.length; i++) {
-			max = {height:'0px'};
-			for (var l=0; l<self.elem.length; l++) {
-				if (+self.elem[l].panId == +self.panels[i]) {
-					if (+max.height.replace('px','')<+self.elem[l].height.replace('px','')) {
-						max=self.elem[l];
-					}
-				}
-				
-			}
-			alert("max.id="+max.panId+ " h="+max.height);
-
-			// header height
-			// define header by name of element "header" 
-			// 	for futher development - we'll pick up element that on the top of panel
-			// that is bad choice, cause main panels should strictly named like p, panels like pan and headers like head
-			max.hh=$('[class^="qvFrame Document_page-'+self.pageNum+' p-'+max.panMainId+' pan-'+max.panId+' head"]').css('height');
-			alert("s="+max.panMainId+max.panId);
-			self.panels[i]= 
-				{
-					height: +max.height.replace('px',''),
-					id: max.panId,
-					mainId: max.panMainId,
-					fold: self.initFolding,
-					header: (max.hh)?+max.hh.replace('px',''):0
-				};
-		}
-		*/
 		return true;
 	}
 
@@ -329,39 +312,26 @@ Qva.AddDocumentExtension('FilterPaneKotov', function(){
 				// but for usability we should collapse them all
 				for (var i=0; i<qvObjectsList.panels.length; i++) {
 					qvObjectsList.foldPanel(qvObjectsList.panels[i].id);
-				}	
+				}
+				docQv.GetAllVariables(function(vars) {
+					for (var i = 0; i < vars.length; i++) {
+						if (vars[i].name.indexOf("vShiftOnlyOne")>-1) {
+							qvObjectsList.onePanelShow=vars[i].value;
+						}
+					}
+				});
 			}
-			});
+		}); //SetOnUpdateComplete
 	});
 });
 
 
 function build()
 {
-	
    // list all jQuery objects
    $('.QvFrame').each(function(){
 		alert($(this).attr("id")+' class='+$(this).attr("class")+'. '+$(this).css("display"));	
 	});		
-	
-    //var qvDoc = Qv.GetCurrentDocument();
-	// qvDoc.SetOnUpdateComplete(shiftLeft);    
-	/*
-	qvDoc.GetAllObjects(function(objects) {
-		    alert('objects:'+objects.length);
-            for (var i = 0; i < objects.length; i++) 
-            { alert(' id='+objects[i].id+' capt='+objects[i].caption+' type='+objects[i].type); }
-        });
-	*/
-	/*	
-	$('[class^="QvFrame Document_TX_NOTVISIBLE"]').each( function (){		
-		var prevVis=$(this).css("display");
-		alert(prevVis);
-		$(this).css("display", 'block');
-		alert($(this).attr("class")+'. '+$(this).css("display")+$(this).css("height"));	
-		//$(this).css("display", prevVis);
-	});
-	*/
 };
 
 //Override the addclass function so we can move the required objects on sheet change
@@ -393,7 +363,6 @@ function build()
         // return the original result
         return result;
     }
-	//alert("end?")
 })(jQuery);
 
 
