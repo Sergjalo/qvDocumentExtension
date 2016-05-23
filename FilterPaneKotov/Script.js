@@ -122,12 +122,17 @@ function ElementsList (pageNum) {
 				fFold= function (){
 					self.foldPanel(panelNum);
 				}
+				// and tie it to element
+				$(this).click(fFold);
+			}
+			if (elType.indexOf('butMainAction')>-1) {
+				fFold= function (){
+					self.foldMainPanel(panelMainNum);
+				}
+				// and tie it to element
+				$(this).click(fFold);
 			}
 			self.elem.push(new Element($(this).attr("id"),elNum,elType,panelMainNum,panelNum, $(this).css('top'), $(this).css('height'),fFold)); //(id,num,type,panMainId,panId)
-			// and tie it to element
-			if (!(fFold==undefined)) {
-				$(this).click(fFold);
-			}	
 		}	
 		return true;
 	});
@@ -142,6 +147,7 @@ function ElementsList (pageNum) {
 	 * @description shift panels under current. It do nothing with current panel,
 	 * cause it assumed that it visibility is switched by qV variable
 	 * panId {number} id of panel to be folded/unfolded
+	 * collapseOther {boolean} default == undefined for collapsing other expanded panels if in onePanelShow mode
 	 */
 	this.foldPanel = function (panId, collapseOther){
 		var pan;
@@ -188,8 +194,57 @@ function ElementsList (pageNum) {
 			var h=parseInt(g.css('top').replace('px',''))+hShift;
 			$('#'+listShiftedObj[k].id).css('top',h+'px');
 		}
+		for (var k=0; k<self.mainPanels.length; k++) {
+			if (self.mainPanels[k].id==pan.mainId) {
+				self.mainPanels[k].height+=hShift;
+			}
+		}
 		self.panels[pId].fold=!pan.fold;
 	}
+
+	/**
+	 * @description shift panels under current. It do nothing with current panel,
+	 * cause it assumed that it visibility is switched by qV variable
+	 * panMainId {number} id of panel to be folded/unfolded
+	 */
+	this.foldMainPanel = function (panMainId){
+		//alert(self.mainPanels.length);
+		var pan;
+		var pId;
+		for (var pn=0; pn<self.mainPanels.length; pn++) {
+			if (self.mainPanels[pn].id==panMainId) {
+				pan= self.mainPanels[pn];
+				pId= pn;
+				break;
+			}
+		}
+		if (pan==undefined) {
+			return false;
+		}
+		// get Qv - to main class
+		// set Qv Var - predefined name vShiftSign_page_MainPanel_Panel
+		var hShift;
+		if (pan.fold) {
+			hShift= pan.height;											
+			self.qvDoc.SetVariable("vShiftSignMain_"+pan.id,"0");
+		}
+		else {
+			hShift= -pan.height;
+			self.qvDoc.SetVariable("vShiftSignMain_"+pan.id,"1");
+		}
+		var listShiftedObj=self.usePanel(pan.id, true, true);
+		alert(hShift);
+		// from top main panel to top +height last panel
+		//hShift=0;
+		for (var k=0; k<listShiftedObj.length; k++) {
+			var g=$('#'+listShiftedObj[k].id);
+			var h=parseInt(g.css('top').replace('px',''))+hShift;
+			//alert(h+" - "+listShiftedObj[k].id);
+			$('#'+listShiftedObj[k].id).css('top',h+'px');
+		}
+		//alert(k);
+		self.mainPanels[pId].fold=!pan.fold;
+	}	
 	
 	/**
 	 * @description fill panels array with max heights of it elements
@@ -216,7 +271,7 @@ function ElementsList (pageNum) {
 			// define header by name of element "header" 
 			// 		for futher development - we'll pick up element that on the top of panel
 			// that is bad choice, cause main panels should strictly named like p, panels like pan and headers like head
-			k.hh=$('[class^="qvFrame Document_page-'+self.pageNum+' p-'+k.panMainId+' pan-'+k.panId+' head"]').css('height');
+			k.hh=$('[class^="QvFrame Document_page-'+self.pageNum+' p-'+k.panMainId+' pan-'+k.panId+' head"]').css('height');
 			return {
 					height: +k.height.replace('px',''),
 					id: k.panId,
@@ -231,6 +286,7 @@ function ElementsList (pageNum) {
 	// for all panels on main sum their heights
 	function findMainPanelHeights (){
 		// find uniq mainPanels id
+		//self.mainPanels=[];
 		self.elem.forEach(function(item) {
 			if (self.mainPanels.indexOf(item.panMainId)==-1) {
 				self.mainPanels.push(item.panMainId);
@@ -240,14 +296,24 @@ function ElementsList (pageNum) {
 		self.mainPanels=self.mainPanels.map(function(item) {
 			var k=self.panels.reduce(function(sum, current) {
 				if (+current.mainId == +item) {
-					sum.height+=current.height;
+					//alert("head"+current.header + " h="+current.height);
+					sum.height+=current.header+current.height;
+					//alert("sum="+sum.height);
 				}
 				return sum; 
 			},{height: 0});
+			//////////////////////////////////////
+			/*
+			var fold =item.fold;
+			if (fold==undefined) {
+				var fold=self.initFolding;
+			}
+			*/
+			alert (" m "+k.height);
 			return {
 					id:	+item,
 					height: k.height,
-					fold: true
+					fold: self.initFolding//fold
 				};
 		});
 		return true;
@@ -310,9 +376,12 @@ Qva.AddDocumentExtension('FilterPaneKotov', function(){
 				qvObjectsList=new ElementsList(0);
 				// document should be opened with all visible panel elements,
 				// but for usability we should collapse them all
-				for (var i=0; i<qvObjectsList.panels.length; i++) {
-					qvObjectsList.foldPanel(qvObjectsList.panels[i].id);
+				for (var i=0; i<qvObjectsList.elem.length; i++) {
+					if (qvObjectsList.elem[i].click!=undefined) {
+						qvObjectsList.elem[i].click()
+					}
 				}
+				
 				docQv.GetAllVariables(function(vars) {
 					for (var i = 0; i < vars.length; i++) {
 						if (vars[i].name.indexOf("vShiftOnlyOne")>-1) {
