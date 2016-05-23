@@ -6,6 +6,8 @@ var paneWidth = 750;
 var shifted = false;
 var shiftedUp = false;
 var currentTab = "";
+var qvObjectsList;
+var docQv;
 
 /**
  * document extension for up/down shifting regions 
@@ -127,10 +129,12 @@ function ElementsList (pageNum) {
 		}	
 		return true;
 	});
-	// fill panels and mainPanels
-	findPanelHeights();
-	findMainPanelHeights();
-
+	if (self.elem.length >0) {
+		// fill panels and mainPanels
+		findPanelHeights();
+		findMainPanelHeights();
+	}
+	
 	//----------------------------------------------------------------------------------------------------------------
 	/**
 	 * @description shift panels under current. It do nothing with current panel,
@@ -140,9 +144,9 @@ function ElementsList (pageNum) {
 	this.foldPanel = function (panId){
 		var pan;
 		var pId;
-		for (var pn=0; pn<this.panels.length; pn++) {
-			if (this.panels[pn].id==panId) {
-				pan= this.panels[pn];
+		for (var pn=0; pn<self.panels.length; pn++) {
+			if (self.panels[pn].id==panId) {
+				pan= self.panels[pn];
 				pId= pn;
 				break;
 			}
@@ -150,12 +154,11 @@ function ElementsList (pageNum) {
 		if (pan==undefined) {
 			return false;
 		}
-		//alert(' fold='+pan.fold+' height='+pan.height+' id='+pan.id);
 		
 		// get Qv - to main class
 		// set Qv Var - predefined name vShiftSign_page_MainPanel_Panel
 		var hShift;
-		if (pan.fold) {														
+		if (pan.fold) {
 			hShift= pan.height;											
 			self.qvDoc.SetVariable("vShiftSign"+self.pageNum+'_'+pan.mainId+'_'+pan.id,"0");
 		}
@@ -163,7 +166,6 @@ function ElementsList (pageNum) {
 			hShift= -pan.height;
 			self.qvDoc.SetVariable("vShiftSign"+self.pageNum+'_'+pan.mainId+'_'+pan.id,"1");
 		}
-		//alert(' hShift='+hShift+ "vShiftSign"+self.pageNum+'_'+pan.mainId+'_'+pan.id);
 		
 		var listShiftedObj=self.usePanel(pan.id, true, false);
 		for (var k=0; k<listShiftedObj.length; k++) {
@@ -172,7 +174,7 @@ function ElementsList (pageNum) {
 			//var h=parseInt(g.position().top)+hShift;
 			$('#'+listShiftedObj[k].id).css('top',h+'px');
 		}
-		this.panels[pId].fold=!pan.fold;
+		self.panels[pId].fold=!pan.fold;
 	}
 	
 	/**
@@ -188,6 +190,7 @@ function ElementsList (pageNum) {
 		});
 		// fill max height
 		self.panels=self.panels.map(function(item) {
+			//alert("item="+item);
 			var k=self.elem.reduce(function(max, current) {
 				if (+current.panId == +item) {
 					if (+max.height.replace('px','')<+current.height.replace('px','')) {
@@ -198,7 +201,7 @@ function ElementsList (pageNum) {
 			}, {height:'0px'});
 			// header height
 			// define header by name of element "header" 
-			// 	for futher development - we'll pick up element that on the top of panel
+			// 		for futher development - we'll pick up element that on the top of panel
 			// that is bad choice, cause main panels should strictly named like p, panels like pan and headers like head
 			k.hh=$('[class^="qvFrame Document_page-'+self.pageNum+' p-'+k.panMainId+' pan-'+k.panId+' head"]').css('height');
 			return {
@@ -209,6 +212,36 @@ function ElementsList (pageNum) {
 					header: (k.hh)?+k.hh.replace('px',''):0
 				};
 		});
+		
+		/* that is the same but without map and reduce
+		for (var i=0; i<self.panels.length; i++) {
+			max = {height:'0px'};
+			for (var l=0; l<self.elem.length; l++) {
+				if (+self.elem[l].panId == +self.panels[i]) {
+					if (+max.height.replace('px','')<+self.elem[l].height.replace('px','')) {
+						max=self.elem[l];
+					}
+				}
+				
+			}
+			alert("max.id="+max.panId+ " h="+max.height);
+
+			// header height
+			// define header by name of element "header" 
+			// 	for futher development - we'll pick up element that on the top of panel
+			// that is bad choice, cause main panels should strictly named like p, panels like pan and headers like head
+			max.hh=$('[class^="qvFrame Document_page-'+self.pageNum+' p-'+max.panMainId+' pan-'+max.panId+' head"]').css('height');
+			alert("s="+max.panMainId+max.panId);
+			self.panels[i]= 
+				{
+					height: +max.height.replace('px',''),
+					id: max.panId,
+					mainId: max.panMainId,
+					fold: self.initFolding,
+					header: (max.hh)?+max.hh.replace('px',''):0
+				};
+		}
+		*/
 		return true;
 	}
 
@@ -279,24 +312,56 @@ function ElementsList (pageNum) {
 Qva.AddDocumentExtension('FilterPaneKotov', function(){
 	Qva.LoadCSS('/QvAjaxZfc/QvsViewClient.aspx?public=only&type=Document&name=Extensions/FilterPaneKotov/docextension.css');
 	$('document').ready(function() {
+		
 		var kk=$('[class$="HOVERABOUT"]');
 		kk.click(function() {
 			build();
 		});
-
-		var e=new ElementsList(0);
-		// alert(e.elem.length+" elements grabbed by extension to provide shifting");
-		console.log(e.elem.length+" elements grabbed by extension to provide shifting");
-	});    
+		docQv = Qv.GetCurrentDocument();
+		docQv.SetOnUpdateComplete(function() {
+			if (qvObjectsList!=undefined) {
+				//alert("w="+qvObjectsList.elem.length);
+				null;
+			}
+			else {
+				qvObjectsList=new ElementsList(0);
+				// document should be opened with all visible panel elements,
+				// but for usability we should collapse them all
+				for (var i=0; i<qvObjectsList.panels.length; i++) {
+					qvObjectsList.foldPanel(qvObjectsList.panels[i].id);
+				}	
+			}
+			});
+	});
 });
 
 
 function build()
 {
+	
    // list all jQuery objects
    $('.QvFrame').each(function(){
-		alert($(this).attr("id")+' class='+$(this).attr("class")+'.');	
+		alert($(this).attr("id")+' class='+$(this).attr("class")+'. '+$(this).css("display"));	
 	});		
+	
+    //var qvDoc = Qv.GetCurrentDocument();
+	// qvDoc.SetOnUpdateComplete(shiftLeft);    
+	/*
+	qvDoc.GetAllObjects(function(objects) {
+		    alert('objects:'+objects.length);
+            for (var i = 0; i < objects.length; i++) 
+            { alert(' id='+objects[i].id+' capt='+objects[i].caption+' type='+objects[i].type); }
+        });
+	*/
+	/*	
+	$('[class^="QvFrame Document_TX_NOTVISIBLE"]').each( function (){		
+		var prevVis=$(this).css("display");
+		alert(prevVis);
+		$(this).css("display", 'block');
+		alert($(this).attr("class")+'. '+$(this).css("display")+$(this).css("height"));	
+		//$(this).css("display", prevVis);
+	});
+	*/
 };
 
 //Override the addclass function so we can move the required objects on sheet change
@@ -311,19 +376,24 @@ function build()
         if($(this).hasClass("selectedtab"))
 		{
 			var newTab = $(this).attr("id");
-		
-			if(newTab != currentTab )
+			// set all vars that control visibility to 0 (show), cause initial state of all elements should be visible
+			docQv.GetAllVariables(function(vars) {
+				for (var i = 0; i < vars.length; i++) {
+					if (vars[i].name.indexOf("vShiftSign")>-1) {docQv.SetVariable(vars[i].name,"0");}
+				}
+			});
+			// jump to another page
+			if(newTab == currentTab )
 			{
-				// alert('originalAddClassMethod call build');
-				//shifted = false;
-			   // build();
-			   null;
+				// doing so we force to fill qvObjectsList during next execution of docQv.SetOnUpdateComplete 
+				qvObjectsList=undefined;
 			}
 			currentTab = newTab;
 		}
         // return the original result
         return result;
     }
+	//alert("end?")
 })(jQuery);
 
 
