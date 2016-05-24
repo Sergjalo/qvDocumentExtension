@@ -1,10 +1,3 @@
-var highlightMode = false;
-var standardMenu;
-var posx;var posy;var initx=false;var inity=false;
-var showFilterPane = false;
-var paneWidth = 750;
-var shifted = false;
-var shiftedUp = false;
 var currentTab = "";
 var qvObjectsList;
 var docQv;
@@ -17,36 +10,33 @@ var docQv;
  * Date: 2016-05
  *
  * For objects, that should shift, Object ID in QV should be like 
- * page-PAGENUM p-MAINPANELNUM pan-PANELNUM butAction-ELEMENTNUM
- * for instance - "page-0 p-0 pan-1 butAction-2" or "page-2 p-0 pan-1 text-3"
+ * p-MAINPANELNUM pan-PANELNUM butAction-ELEMENTNUM
+ * for instance - "p-0 pan-1 butAction-2" or "p-0 pan-1 text-3"
  * 
- * in QlikView there shoud be variable for every panel - vShiftSign_page_MainPanel_Panel (vShiftSign0_0_3 - for panel 3)
+ * in QlikView there shoud be variable for every panel - vShiftSign_MainPanel_Panel (vShiftSign_0_3 - for panel 3)
  * when it 1 - all elements that are not in header should be invisible and sign on folding button should be "down arrow"
- * so for all panel objects except headers and placed on header - define conditional view on vShiftSignn_n_n = 0
- * and on every action button place text like =if(vShiftSign0_0_0=1,chr(9660),chr(9650))
- *
+ * so for all panel objects except headers and placed on header - define conditional view on vShiftSign_n_n = 0
+ * and on every action button place text like =if(vShiftSign_0_0=1,chr(9660),chr(9650))
+ * For folding main panels there should be variable vShiftSignMain_n 
+ * There are some rules for conditional show of panel/main panel elements:
+ *	- for elements that lay on main panel but not on simple panels 
+ *		vShiftSignMain_0=0
+ *	- for elements that lay on main panel but on header of simple panels 
+ *		vShiftSignMain_0=0 (same as previous)
+ *	- for elements that lay on main panel on simple panels 
+ *		vShiftSign_0_1=0 and vShiftSignMain_0=0
+ * 
  * Number of panels is unlimited.
  * if only one panel should be shown at one time apllication should have variable vShiftOnlyOne=1.
  *
  * if element should make fold/unfold action - simply name it as "butAction" (like in first example).
  * (it name shouldn't be strictly "butAction", it should only contain "butAction"
  * 
- * now mainPanels functionality is not ready (folding nested groups of panels). 
- * but for future using name static header of panel like headerF or headerUF. 
- * А meen that initial state is fold, UF - unfold.
  * 
- * Examples:
- * "page-2 p-0 pan-1 headerUFbutAction-3" - that object id describe element that is header of panel #1
- * that'll be show in full size (unfolded) and by cliking on that header it will fold/unfold
- *
- * "page-2 p-0 pan-3 headerF-37"
- * "page-0 p-0 pan-3 butAction-7" - two elements. first - header, another - button to act with panel #3
- *
- * todo - grab state of folding of panel from header element name. if acn be headerF/headerUF
- * 
- * headers - first top element in panel. Or named as header
+ * headers - name (last part of objectID before last number) starting from  "header"
  * main panel height - sum of h simple panels - only headers if folded - header h+panel h if unfolded
- * folding of main panels is under development
+ * when panel collapsing its mainPanel change size.
+ * 
  */
  
  /**
@@ -73,14 +63,12 @@ function Element (id,num,type,panMainId,panId, top, height, click) {
 
 /**
 * @constructs list of all Qv elements on page that should shift up/down
-* @param pageNum {number} number of Qv Tab (page)
 */
-function ElementsList (pageNum) {
+function ElementsList () {
 	this.qvDoc = Qv.GetCurrentDocument();	// get Qv - to main class
 	this.elem = [];
-	this.panels = [];     // {height,id,mainId,fold,header};
+	this.panels = [];     // {height,id,mainId,fold,header,partOfMain};
 	this.mainPanels = []; // {height,id,fold};
-	this.pageNum=pageNum;
 	this.initFolding=false; // unfold
 	this.onePanelShow=0;	// show only one unfold panel
 	
@@ -89,7 +77,7 @@ function ElementsList (pageNum) {
 	var panNumIter=0;
 	var self = this;
 	// fill elem
-	$('[class^="QvFrame Document_page-'+pageNum+'"]').each( function (){		
+	$('[class^="QvFrame Document_"]').each( function (){		
 		var s= $(this).attr("class");
 		
 		var reNums = /-\d+/g ;
@@ -100,20 +88,20 @@ function ElementsList (pageNum) {
 		var panelNum;
 		while ((myArray = reNums.exec(s)) != null) {
 			switch(i) {
-			case 1: //0 - page num, leave it. start from main panel
+			case 0: 
 				panelMainNum=myArray[0].substr(1);
 				break;
-			case 2:
+			case 1:
 				panelNum=myArray[0].substr(1);
 				break;
-			case 3:
+			case 2:
 				elNum=myArray[0].substr(1);
 				break;
 			}
 			i++;
 		}
-		// 4th level of folding is element level
-		if (i==4) {
+		// 3th level of folding is element level
+		if (i==3) {
 			myArray = reType.exec(s);
 			elType=myArray[1];
 			// for elements that should react to fold/unfold panel define function 
@@ -137,6 +125,14 @@ function ElementsList (pageNum) {
 		return true;
 	});
 	if (self.elem.length >0) {
+		// sorting by top position
+		self.elem.sort(function(a, b) {
+			if (a.panId == b.panId) {
+				return a.top - b.top;
+			} else {
+				return a.panId - b.panId;
+			}
+		});
 		// fill panels and mainPanels
 		findPanelHeights();
 		findMainPanelHeights();
@@ -159,7 +155,7 @@ function ElementsList (pageNum) {
 				pId= pn;
 			}
 			else { // if there any other unfolded panels 
-				if ((!self.panels[pn].fold) && ( collapseOther==undefined)) {
+				if ((!self.panels[pn].fold) && (!self.panels[pn].partOfMain) &&(collapseOther==undefined)) {
 					unfolded.push(self.panels[pn].id); // collect their id
 				}
 			}
@@ -167,7 +163,7 @@ function ElementsList (pageNum) {
 		if (pan==undefined) {
 			return false;
 		}
-		
+		// if there are other unfolded panel we should fold them
 		if (collapseOther==undefined) {
 			if (self.onePanelShow==1) {
 				for (var i=0; i<unfolded.length; i++) {
@@ -181,11 +177,11 @@ function ElementsList (pageNum) {
 		var hShift;
 		if (pan.fold) {
 			hShift= pan.height;											
-			self.qvDoc.SetVariable("vShiftSign"+self.pageNum+'_'+pan.mainId+'_'+pan.id,"0");
+			self.qvDoc.SetVariable("vShiftSign_"+pan.mainId+'_'+pan.id,"0");
 		}
 		else {
 			hShift= -pan.height;
-			self.qvDoc.SetVariable("vShiftSign"+self.pageNum+'_'+pan.mainId+'_'+pan.id,"1");
+			self.qvDoc.SetVariable("vShiftSign_"+pan.mainId+'_'+pan.id,"1");
 		}
 		
 		var listShiftedObj=self.usePanel(pan.id, true, false);
@@ -271,13 +267,25 @@ function ElementsList (pageNum) {
 			// define header by name of element "header" 
 			// 		for futher development - we'll pick up element that on the top of panel
 			// that is bad choice, cause main panels should strictly named like p, panels like pan and headers like head
-			k.hh=$('[class^="QvFrame Document_page-'+self.pageNum+' p-'+k.panMainId+' pan-'+k.panId+' head"]').css('height');
+			k.hh=$('[class^="QvFrame Document_p-'+k.panMainId+' pan-'+k.panId+' head"]').css('height');
+			
+			// for every elem of panel check if there type butMainAction. if so - that is part of mainPanel
+			var poM=false;
+			for (var i=0; i<self.elem.length; i++) {
+				if ((k.panMainId==self.elem[i].panMainId)&&
+					(k.panId==self.elem[i].panId)&&
+					(self.elem[i].type.indexOf('butMainAction')>=0)) {
+					poM=true;
+				}
+			}
+			
 			return {
 					height: +k.height.replace('px',''),
 					id: k.panId,
 					mainId: k.panMainId,
 					fold: self.initFolding,
-					header: (k.hh)?+k.hh.replace('px',''):0
+					header: (k.hh)?+k.hh.replace('px',''):0,
+					partOfMain: poM
 				};
 		});
 		return true;
@@ -366,6 +374,7 @@ Qva.AddDocumentExtension('FilterPaneKotov', function(){
 		kk.click(function() {
 			build();
 		});
+		
 		docQv = Qv.GetCurrentDocument();
 		docQv.SetOnUpdateComplete(function() {
 			if (qvObjectsList!=undefined) {
@@ -373,12 +382,21 @@ Qva.AddDocumentExtension('FilterPaneKotov', function(){
 				null;
 			}
 			else {
-				qvObjectsList=new ElementsList(0);
+				qvObjectsList=new ElementsList();
 				// document should be opened with all visible panel elements,
 				// but for usability we should collapse them all
+				// so as array is sorted by panels and top position - collapse from bottom
+				//for (var i=0; i<qvObjectsList.elem.length; i++) {
+				let set = new Set();
 				for (var i=qvObjectsList.elem.length-1; i>=0; i--) {
 					if (qvObjectsList.elem[i].click!=undefined) {
-						qvObjectsList.elem[i].click()
+						//alert(qvObjectsList.elem[i].num+" pan="+qvObjectsList.elem[i].panId);
+
+						// for every panel only one click!
+						if (!set.has(qvObjectsList.elem[i].panId)) {
+							qvObjectsList.elem[i].click();
+							set.add(qvObjectsList.elem[i].panId);
+						}
 					}
 				}
 				
