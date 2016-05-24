@@ -25,6 +25,11 @@ var docQv;
  *		vShiftSignMain_0=0 (same as previous)
  *	- for elements that lay on main panel on simple panels 
  *		vShiftSign_0_1=0 and vShiftSignMain_0=0
+ * For switching main panel there should be object with name butMainAction - it'll connected to main panel shift action
+ * 
+ * Because for tracking objects they should be visible, but some object visability switching by tricky conditions
+ * before reload page we set all that conditions to true, and then turn them to usual state. That is done by adding
+ * to every switching condition external condition like vShiftSignN or ( usual_condition )
  * 
  * Number of panels is unlimited.
  * if only one panel should be shown at one time apllication should have variable vShiftOnlyOne=1.
@@ -189,6 +194,7 @@ function ElementsList () {
 			var g=$('#'+listShiftedObj[k].id);
 			var h=parseInt(g.css('top').replace('px',''))+hShift;
 			$('#'+listShiftedObj[k].id).css('top',h+'px');
+			//alert("hShift="+hShift+" h="+h+" - "+listShiftedObj[k].id+ " top="+$('#'+listShiftedObj[k].id).css('top'));
 		}
 		for (var k=0; k<self.mainPanels.length; k++) {
 			if (self.mainPanels[k].id==pan.mainId) {
@@ -376,13 +382,22 @@ Qva.AddDocumentExtension('FilterPaneKotov', function(){
 		});
 		
 		docQv = Qv.GetCurrentDocument();
+		docQv.GetAllVariables(function(vars) {
+			for (var i = 0; i < vars.length; i++) {
+				if (vars[i].name.indexOf("vShiftSign")>-1) {docQv.SetVariable(vars[i].name,"0");}
+				// // all conditional switching set to visible for grabbing them to qvObjectsList
+				if (vars[i].name.indexOf("vShowSwitch")>-1) {docQv.SetVariable(vars[i].name,"1");}
+			}
+		});
 		docQv.SetOnUpdateComplete(function() {
+			//alert("on update");
 			if (qvObjectsList!=undefined) {
 				//alert("w="+qvObjectsList.elem.length);
 				null;
 			}
 			else {
 				qvObjectsList=new ElementsList();
+				// set all vars that control visibility to 0 (show), cause initial state of all elements should be visible
 				// document should be opened with all visible panel elements,
 				// but for usability we should collapse them all
 				// so as array is sorted by panels and top position - collapse from bottom
@@ -403,8 +418,10 @@ Qva.AddDocumentExtension('FilterPaneKotov', function(){
 				docQv.GetAllVariables(function(vars) {
 					for (var i = 0; i < vars.length; i++) {
 						if (vars[i].name.indexOf("vShiftOnlyOne")>-1) {
-							qvObjectsList.onePanelShow=vars[i].value;
-						}
+							qvObjectsList.onePanelShow=vars[i].value; }
+						// all conditional switching to usual state	
+						if (vars[i].name.indexOf("vShowSwitch")>-1) {
+							docQv.SetVariable(vars[i].name,"0")}
 					}
 				});
 			}
