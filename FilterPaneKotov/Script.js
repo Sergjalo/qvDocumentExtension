@@ -233,14 +233,14 @@ function ElementsList (pageNum) {
 			self.qvDoc.SetVariable("vShiftSignMain_"+pan.id,"1");
 		}
 		var listShiftedObj=self.usePanel(pan.id, true, true);
-		alert(hShift);
+		//alert(hShift);
 		// from top main panel to top +height last panel
 		//hShift=0;
 		for (var k=0; k<listShiftedObj.length; k++) {
 			var g=$('#'+listShiftedObj[k].id);
 			var h=parseInt(g.css('top').replace('px',''))+hShift;
-			//alert(h+" - "+listShiftedObj[k].id);
 			$('#'+listShiftedObj[k].id).css('top',h+'px');
+			//alert("hShift="+hShift+" h="+h+" - "+listShiftedObj[k].id+ " top="+$('#'+listShiftedObj[k].id).css('top'));
 		}
 		//alert(k);
 		self.mainPanels[pId].fold=!pan.fold;
@@ -309,7 +309,7 @@ function ElementsList (pageNum) {
 				var fold=self.initFolding;
 			}
 			*/
-			alert (" m "+k.height);
+			//alert (" m "+k.height);
 			return {
 					id:	+item,
 					height: k.height,
@@ -376,7 +376,7 @@ Qva.AddDocumentExtension('FilterPaneKotov', function(){
 				qvObjectsList=new ElementsList(0);
 				// document should be opened with all visible panel elements,
 				// but for usability we should collapse them all
-				for (var i=0; i<qvObjectsList.elem.length; i++) {
+				for (var i=qvObjectsList.elem.length-1; i>=0; i--) {
 					if (qvObjectsList.elem[i].click!=undefined) {
 						qvObjectsList.elem[i].click()
 					}
