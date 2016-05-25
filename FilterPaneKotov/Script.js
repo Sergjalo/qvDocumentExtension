@@ -132,10 +132,15 @@ function ElementsList () {
 	if (self.elem.length >0) {
 		// sorting by top position
 		self.elem.sort(function(a, b) {
-			if (a.panId == b.panId) {
-				return a.top - b.top;
-			} else {
-				return a.panId - b.panId;
+			if (a.panMainId == b.panMainId) {
+				if (a.panId == b.panId) {
+					return a.top - b.top;
+				} else {
+					return a.panId - b.panId;
+				}
+			}
+			else {
+				return a.panMainId - b.panMainId;
 			}
 		});
 		// fill panels and mainPanels
@@ -189,16 +194,20 @@ function ElementsList () {
 			self.qvDoc.SetVariable("vShiftSign_"+pan.mainId+'_'+pan.id,"1");
 		}
 		
-		var listShiftedObj=self.usePanel(pan.id, true, false);
+		//alert("shifting: "+pan.mainId+" "+ pan.id);
+		var listShiftedObj=self.usePanel(pan.id, true, pan.mainId);
 		for (var k=0; k<listShiftedObj.length; k++) {
 			var g=$('#'+listShiftedObj[k].id);
 			var h=parseInt(g.css('top').replace('px',''))+hShift;
 			$('#'+listShiftedObj[k].id).css('top',h+'px');
+			//alert(listShiftedObj[k].panMainId+ " "+listShiftedObj[k].panId);
 			//alert("hShift="+hShift+" h="+h+" - "+listShiftedObj[k].id+ " top="+$('#'+listShiftedObj[k].id).css('top'));
 		}
+		
 		for (var k=0; k<self.mainPanels.length; k++) {
 			if (self.mainPanels[k].id==pan.mainId) {
 				self.mainPanels[k].height+=hShift;
+				//alert("MainpanH"+pan.mainId+"="+self.mainPanels[k].height);
 			}
 		}
 		self.panels[pId].fold=!pan.fold;
@@ -234,7 +243,9 @@ function ElementsList () {
 			hShift= -pan.height;
 			self.qvDoc.SetVariable("vShiftSignMain_"+pan.id,"1");
 		}
-		var listShiftedObj=self.usePanel(pan.id, true, true);
+
+		//alert("shifting main: "+ pan.id);
+		var listShiftedObj=self.usePanel(pan.id, true);
 		//alert(hShift);
 		// from top main panel to top +height last panel
 		//hShift=0;
@@ -242,6 +253,7 @@ function ElementsList () {
 			var g=$('#'+listShiftedObj[k].id);
 			var h=parseInt(g.css('top').replace('px',''))+hShift;
 			$('#'+listShiftedObj[k].id).css('top',h+'px');
+			//alert(listShiftedObj[k].panMainId+ " "+listShiftedObj[k].panId);
 			//alert("hShift="+hShift+" h="+h+" - "+listShiftedObj[k].id+ " top="+$('#'+listShiftedObj[k].id).css('top'));
 		}
 		//alert(k);
@@ -253,16 +265,23 @@ function ElementsList () {
 	 * @private
 	 */
 	function findPanelHeights (){
-		// find uniq panels id
+		// find uniq panels mainId/id
 		self.elem.forEach(function(item) {
-			if (self.panels.indexOf(item.panId)==-1) {
-				self.panels.push(item.panId);
-			}	
+			var addNew=true;
+			for (var i=0; i<self.panels.length; i++) {
+				if ((self.panels[i].id==item.panId) && (self.panels[i].mainId==item.panMainId)) {
+					addNew=false;
+					break;
+				}
+			}
+			if (addNew) {
+				self.panels.push({id: item.panId, mainId:item.panMainId});
+			}
 		});
 		// fill max height
 		self.panels=self.panels.map(function(item) {
 			var k=self.elem.reduce(function(max, current) {
-				if (+current.panId == +item) {
+				if ((+current.panId == +item.id) && (+current.panMainId == +item.mainId)) {
 					if (+max.height.replace('px','')<+current.height.replace('px','')) {
 						return current;
 					}
@@ -274,7 +293,7 @@ function ElementsList () {
 			// 		for futher development - we'll pick up element that on the top of panel
 			// that is bad choice, cause main panels should strictly named like p, panels like pan and headers like head
 			k.hh=$('[class^="QvFrame Document_p-'+k.panMainId+' pan-'+k.panId+' head"]').css('height');
-			
+
 			// for every elem of panel check if there type butMainAction. if so - that is part of mainPanel
 			var poM=false;
 			for (var i=0; i<self.elem.length; i++) {
@@ -284,6 +303,7 @@ function ElementsList () {
 					poM=true;
 				}
 			}
+			//alert("h="+k.height+"h="+k.height+" hh="+k.hh+" k.panId="+k.panId+" panMainId="+k.panMainId+" poM="+poM);
 			
 			return {
 					height: +k.height.replace('px',''),
@@ -312,22 +332,14 @@ function ElementsList () {
 				if (+current.mainId == +item) {
 					//alert("head"+current.header + " h="+current.height);
 					sum.height+=current.header+current.height;
-					//alert("sum="+sum.height);
 				}
 				return sum; 
 			},{height: 0});
-			//////////////////////////////////////
-			/*
-			var fold =item.fold;
-			if (fold==undefined) {
-				var fold=self.initFolding;
-			}
-			*/
 			//alert (" m "+k.height);
 			return {
 					id:	+item,
 					height: k.height,
-					fold: self.initFolding//fold
+					fold: self.initFolding
 				};
 		});
 		return true;
@@ -339,31 +351,29 @@ function ElementsList () {
 	 * @param a {object} element object from list of all objects
 	 * @param b {number} number of panel or Main panel on wich or under wich elements should be finded
 	 * @param isBelow {boolean} flag to define if elements on other panels that under b required
-	 * @param isMain {boolean} flag to define level of panel
+	 * @param idMain {number} if undefined - current panel is main itself and it id is in b. If not undefined - it is a simple panel and in b id of panel
 	 * @returns {boolean} is element a fit requirements 
 	 */
-	function compareElements (a,b,isBelow, isMain) {
-		a=(isMain) ? a.panMainId : a.panId;
-		if (isBelow) {
-			return a>b
-		}
-		else {
-			return a==b
-		}
+	function compareElements (a,b,isBelow, idMain) {
+		// 
+		a=(idMain==undefined) ? a.panMainId : a.panMainId*10000+a.panId;
+		b=(idMain==undefined) ? b : idMain*10000+b;
+		
+		return (isBelow) ? (a>b) : (a==b);
 	}
 	
 	/**
 	 * @description return array of elements that on panel (or main panel isMain=true) or below that panel (isBelow=true)
 	 * @param panelNum {number} number of panel or Main panel on wich or under wich elements should be finded
 	 * @param isBelow {boolean} flag to define if elements on other panels that under b required
-	 * @param isMain {boolean} flag to define level of panel
+	 * @param idMain {number} if undefined - current panel is main itself and it id is in b. If not undefined - it is a simple panel and in b id of panel
 	 * @returns {array} array of founded elements
 	 */
-	this.usePanel = function (panelNum, isBelow, isMain) {
+	this.usePanel = function (panelNum, isBelow, idMain) {
 		var arElem=[];
 		for (var k=0; k<this.elem.length; k++) {
 		//for (k in this.elem) {
-			if (compareElements(this.elem[k],panelNum,isBelow, isMain)) {
+			if (compareElements(this.elem[k],panelNum,isBelow, idMain)) {
 				arElem.push(this.elem[k]); //console.log(elem[k].id+ " "+ elem[k].type+ " "+ elem[k].num);
 			}
 		}
