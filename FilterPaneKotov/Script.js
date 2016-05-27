@@ -1,4 +1,5 @@
-var currentTab = "";
+var currentTab = "_";
+var fRefresh=false;
 var qvObjectsList;
 var docQv;
 
@@ -374,7 +375,6 @@ Qva.AddDocumentExtension('FilterPaneEPAM', function(){
 		kk.click(function() {
 			build();
 		});
-		
 		docQv = Qv.GetCurrentDocument();
 		docQv.GetAllVariables(function(vars) {
 			for (var i = 0; i < vars.length; i++) {
@@ -390,6 +390,8 @@ Qva.AddDocumentExtension('FilterPaneEPAM', function(){
 				null;
 			}
 			else {
+				// flush condition for page changing
+				fRefresh=false;
 				qvObjectsList=new ElementsList();
 				// set all vars that control visibility to 0 (show), cause initial state of all elements should be visible
 				// document should be opened with all visible panel elements,
@@ -440,17 +442,23 @@ function build()
         if($(this).hasClass("selectedtab"))
 		{
 			var newTab = $(this).attr("id");
-			// set all vars that control visibility to 0 (show), cause initial state of all elements should be visible
-			docQv.GetAllVariables(function(vars) {
-				for (var i = 0; i < vars.length; i++) {
-					if (vars[i].name.indexOf("vShiftSign")>-1) {docQv.SetVariable(vars[i].name,"0");}
-				}
-			});
+			//alert("add class "+newTab +" current tab - "+ currentTab + " fRefresh="+ fRefresh);
 			// jump to another page
-			if(newTab == currentTab )
+			// if it is switching to another page action, but not simple page refresh
+			if ((newTab == currentTab ) && (fRefresh))
 			{
+				// set all vars that control visibility to 0 (show), cause initial state of all elements should be visible
+				docQv.GetAllVariables(function(vars) {
+					for (var i = 0; i < vars.length; i++) {
+						if (vars[i].name.indexOf("vShiftSign")>-1) {docQv.SetVariable(vars[i].name,"0");}
+					}
+				});
 				// doing so we force to fill qvObjectsList during next execution of docQv.SetOnUpdateComplete 
 				qvObjectsList=undefined;
+			}
+			// next tab adding is our event
+			if (newTab != currentTab ) {
+				fRefresh=true;
 			}
 			currentTab = newTab;
 		}
