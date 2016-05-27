@@ -82,33 +82,15 @@ function ElementsList () {
 	var panNumIter=0;
 	var self = this;
 	// fill elem
-	$('[class^="QvFrame Document_"]').each( function (){		
-		var s= $(this).attr("class");
-		
-		var reNums = /-\d+/g ;
-		var reType = /(\w+)-\d+$/ ;
-		var myArray=[];
-		var i=0;
-		var panelMainNum;
-		var panelNum;
-		while ((myArray = reNums.exec(s)) != null) {
-			switch(i) {
-			case 0: 
-				panelMainNum=myArray[0].substr(1);
-				break;
-			case 1:
-				panelNum=myArray[0].substr(1);
-				break;
-			case 2:
-				elNum=myArray[0].substr(1);
-				break;
-			}
-			i++;
-		}
-		// 3th level of folding is element level
-		if (i==3) {
-			myArray = reType.exec(s);
-			elType=myArray[1];
+	// grab only visible elements cause QV set height of .css("display")=none elemnts to 0.
+	
+	$("[class^='QvFrame Document_']").each(function(){
+		var ar=$(this).attr("class").split(" ");
+		if (ar.length==4) {
+			var panelMainNum = ar[1].match(/\d+/).toString();
+			var panelNum = ar[2].match(/\d+/).toString();
+			elNum = ar[3].match(/\d+/).toString();
+			elType = ar[3].match(/^\w+/).toString();
 			// for elements that should react to fold/unfold panel define function 
 			var fFold = null;
 			if (elType.indexOf('butAction')>-1) {
@@ -126,9 +108,9 @@ function ElementsList () {
 				$(this).click(fFold);
 			}
 			self.elem.push(new Element($(this).attr("id"),elNum,elType,panelMainNum,panelNum, $(this).css('top'), $(this).css('height'),fFold)); //(id,num,type,panMainId,panId)
-		}	
-		return true;
+		}
 	});
+	
 	if (self.elem.length >0) {
 		// sorting by top position
 		self.elem.sort(function(a, b) {
@@ -346,7 +328,9 @@ function ElementsList () {
 	}
 
 	/**
-	 * @description compare elements regarding to flags 
+	 * @description compare elements regarding to flags. Define elements by both panelMainId and panelId.
+	 * compare of elements only by MainId is just MainId compare, but for panelId wу should remember that panelId
+	 * is not uniq, but union of MainId and panelId is uniq.
 	 * @private
 	 * @param a {object} element object from list of all objects
 	 * @param b {number} number of panel or Main panel on wich or under wich elements should be finded
@@ -451,12 +435,8 @@ function build()
 //Override the addclass function so we can move the required objects on sheet change
 (function(){
     var originalAddClassMethod = jQuery.fn.addClass;
-	//jQuery.getScript("definitions.js", function(){  null;	});
     jQuery.fn.addClass = function(){
-        // Execute the original method.
         var result = originalAddClassMethod.apply( this, arguments );
-        // call your function
-        // this gets called everytime you use the addClass method
         if($(this).hasClass("selectedtab"))
 		{
 			var newTab = $(this).attr("id");
